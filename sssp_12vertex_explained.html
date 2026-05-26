@@ -1,0 +1,184 @@
+<style>
+.wrap{display:flex;gap:8px}
+.pnl{flex:1;min-width:0;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);overflow:hidden}
+.ph{padding:5px 8px;font-size:12px;font-weight:600;border-bottom:0.5px solid var(--color-border-tertiary)}
+.pd{padding:5px 8px 6px;min-height:92px;font-size:9.5px;color:var(--color-text-secondary);line-height:1.5}
+.dt{display:flex;gap:3px;justify-content:center;padding:4px 0 6px;border-top:0.5px solid var(--color-border-tertiary)}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--color-border-secondary);transition:background .2s}
+.on{background:#534AB7}
+.leg{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:7px;font-size:10px;color:var(--color-text-secondary);align-items:center}
+.lc{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle;margin-right:2px}
+</style>
+<h2 class="sr-only">12-vertex SSSP animated comparison with plain English explanations</h2>
+<div class="wrap">
+  <div class="pnl"><div class="ph" style="background:#F1EFE8;color:#333">Dijkstra</div><div id="s0"></div><div class="pd" id="d0"></div><div class="dt" id="t0"></div></div>
+  <div class="pnl"><div class="ph" style="background:#EEEDFE;color:#3C3489">Duan 2025</div><div id="s1"></div><div class="pd" id="d1"></div><div class="dt" id="t1"></div></div>
+  <div class="pnl"><div class="ph" style="background:#E1F5EE;color:#085041">Duan 2026</div><div id="s2"></div><div class="pd" id="d2"></div><div class="dt" id="t2"></div></div>
+</div>
+<div class="leg">
+  <span><span class="lc" style="background:#E8E7E1;border:0.5px solid #AAA89F"></span>unvisited</span>
+  <span><span class="lc" style="background:#FAEEDA;border:0.5px solid #7A3B06"></span>queued</span>
+  <span><span class="lc" style="background:#D9EEFF;border:0.5px solid #1056A3"></span>processing</span>
+  <span><span class="lc" style="background:#FDE9D4;border:0.5px solid #B05010"></span>BF / local flood</span>
+  <span><span class="lc" style="background:#FAECE7;border:0.5px solid #882812"></span>pivot</span>
+  <span><span class="lc" style="background:#D8F3E8;border:0.5px solid #0C5C3A"></span>settled ✓</span>
+</div>
+<script>
+const POS={s:[22,82],A:[70,40],B:[70,122],C:[118,20],D:[118,62],E:[118,132],F:[165,20],G:[165,52],H:[165,82],J:[165,118],I:[215,65],K:[260,90]};
+const ED=[['s','A',4],['s','B',2],['A','C',3],['A','D',1],['B','D',5],['B','E',3],['C','F',2],['D','G',4],['D','H',1],['E','H',6],['G','I',2],['H','I',3],['H','J',5],['I','K',1],['J','K',2]];
+const C={U:['#E8E7E1','#AAA89F'],Q:['#FAEEDA','#7A3B06'],X:['#D9EEFF','#1056A3'],F:['#FDE9D4','#B05010'],V:['#FAECE7','#882812'],T:['#D8F3E8','#0C5C3A']};
+
+function mkSVG(ns,pid){
+  const R=10;
+  let o=`<svg viewBox="0 0 295 158" width="100%" style="display:block"><defs><marker id="ah${pid}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#B8B6AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>`;
+  for(const[a,b,w]of ED){
+    const[ax,ay]=POS[a],[bx,by]=POS[b];
+    const dx=bx-ax,dy=by-ay,len=Math.hypot(dx,dy);
+    const ux=dx/len,uy=dy/len;
+    const x1=ax+R*ux,y1=ay+R*uy,x2=bx-R*ux,y2=by-R*uy;
+    const mx=(x1+x2)/2,my=(y1+y2)/2;
+    const lx=(mx-(-dy/len)*7).toFixed(1),ly=(my-(dx/len)*7).toFixed(1);
+    o+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#C8C6BF" stroke-width="1.1" marker-end="url(#ah${pid})"/>`;
+    o+=`<text x="${lx}" y="${ly}" text-anchor="middle" font-size="8" fill="#8A8880">${w}</text>`;
+  }
+  for(const[id,[cx,cy]]of Object.entries(POS)){
+    const[f,s]=C[ns[id]||'U'];
+    o+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="${f}" stroke="${s}" stroke-width="1.4"/>`;
+    o+=`<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="9" font-weight="700" fill="${s}">${id}</text>`;
+  }
+  return o+'</svg>';
+}
+
+function st(ov){
+  return Object.assign({s:'U',A:'U',B:'U',C:'U',D:'U',E:'U',F:'U',G:'U',H:'U',I:'U',J:'U',K:'U'},ov);
+}
+
+const AL=[
+  {fr:[
+    {
+      d:'Everyone starts unknown — d[s]=0, everything else is ∞. Think of s as your starting city. You have no idea how far A, B, or anyone else is yet. s is the first entry in the sorted priority queue.',
+      n:st({s:'X'})
+    },
+    {
+      d:'Extract s (cost 0) — the cheapest in the queue. Look at s\'s roads: A costs 4, B costs 2. Add both to the queue, sorted by cost. Cheapest next is B at cost 2. Queue = {B(2), A(4)}.',
+      n:st({s:'T',A:'Q',B:'Q'})
+    },
+    {
+      d:'Extract B (cost 2). From B: D costs 2+5=7, E costs 2+3=5. Both queued. Notice D is only a tentative estimate — we might find a cheaper way via A later. Queue = {A(4), E(5), D(7)}.',
+      n:st({s:'T',A:'Q',B:'X',D:'Q',E:'Q'})
+    },
+    {
+      d:'Extract A (cost 4). From A: C costs 4+3=7 (new). D costs 4+1=5 — cheaper than the old 7! D drops from 7→5 in the queue. This update is called "decrease-key" and is unique to Dijkstra.',
+      n:st({s:'T',A:'X',B:'T',C:'Q',D:'Q',E:'Q'})
+    },
+    {
+      d:'Extract D (cost 5). From D: G costs 5+4=9, H costs 5+1=6. Both added. Dijkstra always picks the globally cheapest unfinished vertex, so every extracted vertex is guaranteed correct.',
+      n:st({s:'T',A:'T',B:'T',C:'Q',D:'X',E:'Q',G:'Q',H:'Q'})
+    },
+    {
+      d:'Extract E (cost 5, tied with D). Try E→H: 5+6=11. But H is already in the queue at 6. Since 11 > 6, we do nothing. Dijkstra never relaxes to a worse value — the queue protects correctness.',
+      n:st({s:'T',A:'T',B:'T',C:'Q',D:'T',E:'X',G:'Q',H:'Q'})
+    },
+    {
+      d:'Extract H (cost 6). From H: I costs 6+3=9, J costs 6+5=11. Both added. Queue = {C(7), G(9), I(9), J(11)}. Notice Dijkstra is processing vertices one-by-one in strict cost order — that\'s the sorting bottleneck.',
+      n:st({s:'T',A:'T',B:'T',C:'Q',D:'T',E:'T',G:'Q',H:'X',I:'Q',J:'Q'})
+    },
+    {
+      d:'Extract C (cost 7). From C: F costs 7+2=9. Added. Queue = {G(9), I(9), F(9), J(11)}. We\'ve now done 7 individual sorted extractions just to settle 7 vertices — each one requires the heap to find the global minimum.',
+      n:st({s:'T',A:'T',B:'T',C:'X',D:'T',E:'T',F:'Q',G:'Q',H:'T',I:'Q',J:'Q'})
+    },
+    {
+      d:'3-way tie at cost 9: extract G, I, F one by one. From I: K costs 9+1=10 — inserted. From G: tries I at 11>9, no update. Queue = {K(10), J(11)}. The tie shows why the sorting barrier is at least Ω(n log n).',
+      n:st({s:'T',A:'T',B:'T',C:'T',D:'T',E:'T',F:'X',G:'X',H:'T',I:'X',J:'Q',K:'Q'})
+    },
+    {
+      d:'Extract K(10). Extract J(11): J tries K at 11+2=13 > 10, rejected. ✓ Done! 10 individual sorted extractions to settle 12 vertices. Every step required finding the global minimum — that\'s the O(n log n) sorting barrier Duan et al. break.',
+      n:st({s:'T',A:'T',B:'T',C:'T',D:'T',E:'T',F:'T',G:'T',H:'T',I:'T',J:'T',K:'T'})
+    }
+  ]},
+  {fr:[
+    {
+      d:'s settled. Frontier S = {A(4), B(2)} — these are confirmed correct. The challenge: how do we find distances for C, D, E... without ranking A vs B first? Answer: skip sorting, flood outward in waves.',
+      n:st({s:'T',A:'Q',B:'Q'})
+    },
+    {
+      d:'BF Flood Step 1 — push outward from A and B simultaneously, no priority queue at all. Like water ripples: D=5 (A+1), C=7 (A+3), E=5 (B+3). Three vertices discovered in one parallel sweep, zero comparisons between A and B.',
+      n:st({s:'T',A:'Q',B:'Q',C:'F',D:'F',E:'F'})
+    },
+    {
+      d:'BF Flood Step 2 — push from the newly found layer {C, D, E}. H=6 (D+1), G=9 (D+4), F=9 (C+2). The flood expands another layer. We still haven\'t sorted anyone — just repeated relaxations.',
+      n:st({s:'T',A:'Q',B:'Q',C:'F',D:'F',E:'F',F:'F',G:'F',H:'F'})
+    },
+    {
+      d:'BF Flood Step 3 — push from {F, G, H}. I=9 (H+3), J=11 (H+5). K is still unreachable — getting to K requires 4 hops from A, but we only allowed k=3 flood steps. K stays at ∞. Flood stops here.',
+      n:st({s:'T',A:'Q',B:'Q',C:'F',D:'F',E:'F',F:'F',G:'F',H:'F',I:'F',J:'F'})
+    },
+    {
+      d:'Check subtree sizes: A\'s flood-subtree = {C,D,F,G,H,I,J}, size 7 ≥ k=3 → A is a PIVOT. B\'s subtree = {E}, size 1 < k → not a pivot. Every orange vertex is now confirmed correct. Only K remains at ∞.',
+      n:st({s:'T',A:'V',B:'Q',C:'T',D:'T',E:'T',F:'T',G:'T',H:'T',I:'T',J:'T'})
+    },
+    {
+      d:'Recurse only on pivot A: run mini-Dijkstra starting from A. It traces A→D→H→I→K, finding K=10. Only 1 pivot triggered recursion instead of sorting the entire frontier. This is the key insight that breaks the sorting barrier.',
+      n:st({s:'T',A:'X',B:'Q',C:'T',D:'T',E:'T',F:'T',G:'T',H:'T',I:'X',J:'T',K:'X'})
+    },
+    {
+      d:'B and E settle from their arborescence W — already correctly computed during the flood. ✓ All 12 vertices done in 6 conceptual steps! Compare to Dijkstra\'s 10. Multiple vertices settled per step, no global sorting needed.',
+      n:st({s:'T',A:'T',B:'T',C:'T',D:'T',E:'T',F:'T',G:'T',H:'T',I:'T',J:'T',K:'T'})
+    }
+  ]},
+  {fr:[
+    {
+      d:'s settled. Frontier S = {A(4), B(2)}. Same starting point as Duan 2025. But instead of a blind BF flood, we\'ll run a smart local Dijkstra search from each frontier vertex — building an explicit tree structure first.',
+      n:st({s:'T',A:'Q',B:'Q'})
+    },
+    {
+      d:'Local Dijkstra from A (uses a Fibonacci heap — O(log k) per extraction). Heap extracts A first, then D (cheapest neighbour at cost 5), then H (next at cost 6). After finding k=3 vertices, stop. Tree F₁ = {A→D→H} is now built.',
+      n:st({s:'T',A:'X',B:'Q',D:'F',H:'F'})
+    },
+    {
+      d:'A\'s tree {A, D, H} gets one representative: its minimum vertex A (cost 4). A is the PIVOT — it "owns" D and H. Only A is inserted into the main data structure. D and H are bundled under A, avoiding unnecessary sorting.',
+      n:st({s:'T',A:'V',B:'Q',D:'Q',H:'Q'})
+    },
+    {
+      d:'Local Dijkstra from B: B→D costs 7, but d[D]=5 already (found via A). 7 > 5, so that relaxation is invalid — skipped. Only B→E (cost 5) succeeds. Tree size = 2 < k=3, so B becomes an arborescence: a small branch handled separately.',
+      n:st({s:'T',A:'V',B:'X',D:'Q',E:'F',H:'Q'})
+    },
+    {
+      d:'Pull A from data structure. Expand: A owns {A,D,H} → process all three as one batch. Settle A(4), D(5), H(6). Relax outgoing edges: C=7, G=9, I=9, J=11 all inserted. Cost is O(log k) per vertex, not O(k) like the 2025 BF flood.',
+      n:st({s:'T',A:'T',B:'Q',C:'Q',D:'T',E:'F',G:'Q',H:'T',I:'Q',J:'Q'})
+    },
+    {
+      d:'Pull batch {C, G, I} — settle all three. Their outgoing edges give F=9 and K=10 (inserted). B and E are settled from their arborescence. The Merge operation folds the sub-call\'s output back into the parent data structure in O(output size) time.',
+      n:st({s:'T',A:'T',B:'T',C:'T',D:'T',E:'T',F:'Q',G:'T',H:'T',I:'T',J:'Q',K:'Q'})
+    },
+    {
+      d:'Pull F, K, J — settle all. ✓ Done! Over Duan 2025: the structured local search costs O(log k) per vertex (heap) vs O(k) per vertex (blind flood). That\'s what lifts the time from O(m log²/³n) to O(m√log n).',
+      n:st({s:'T',A:'T',B:'T',C:'T',D:'T',E:'T',F:'T',G:'T',H:'T',I:'T',J:'T',K:'T'})
+    }
+  ]}
+];
+
+AL.forEach((al,i)=>{
+  const sv=document.getElementById('s'+i);
+  const dv=document.getElementById('d'+i);
+  const tv=document.getElementById('t'+i);
+  al.fr.forEach((_,fi)=>{
+    const sp=document.createElement('span');
+    sp.className='dot'+(fi===0?' on':'');
+    sp.id='dot_'+i+'_'+fi;
+    tv.appendChild(sp);
+  });
+  let cur=0;
+  function render(){
+    const f=al.fr[cur];
+    sv.innerHTML=mkSVG(f.n,i);
+    dv.textContent=f.d;
+    al.fr.forEach((_,fi)=>{
+      const el=document.getElementById('dot_'+i+'_'+fi);
+      if(el)el.className='dot'+(fi===cur?' on':'');
+    });
+  }
+  render();
+  setInterval(()=>{cur=(cur+1)%al.fr.length;render();},7000);
+});
+</script>

@@ -1,0 +1,112 @@
+<style>
+.wrap{display:flex;gap:8px}
+.pnl{flex:1;min-width:0;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);overflow:hidden}
+.ph{padding:5px 8px;font-size:12px;font-weight:600;border-bottom:0.5px solid var(--color-border-tertiary)}
+.pd{padding:5px 8px 6px;min-height:56px;font-size:10.5px;color:var(--color-text-secondary);line-height:1.45}
+.dt{display:flex;gap:3px;justify-content:center;padding:4px 0 6px;border-top:0.5px solid var(--color-border-tertiary)}
+.dot{width:5px;height:5px;border-radius:50%;background:var(--color-border-secondary);transition:background .2s}
+.on{background:#534AB7}
+.leg{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:7px;font-size:10px;color:var(--color-text-secondary);align-items:center}
+.lc{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:middle;margin-right:2px}
+</style>
+<h2 class="sr-only">12-vertex SSSP comparison: Dijkstra, Duan 2025, Duan 2026 — slow mode</h2>
+<div class="wrap">
+  <div class="pnl"><div class="ph" style="background:#F1EFE8;color:#333">Dijkstra</div><div id="s0"></div><div class="pd" id="d0"></div><div class="dt" id="t0"></div></div>
+  <div class="pnl"><div class="ph" style="background:#EEEDFE;color:#3C3489">Duan 2025</div><div id="s1"></div><div class="pd" id="d1"></div><div class="dt" id="t1"></div></div>
+  <div class="pnl"><div class="ph" style="background:#E1F5EE;color:#085041">Duan 2026</div><div id="s2"></div><div class="pd" id="d2"></div><div class="dt" id="t2"></div></div>
+</div>
+<div class="leg">
+  <span><span class="lc" style="background:#E8E7E1;border:0.5px solid #AAA89F"></span>unvisited</span>
+  <span><span class="lc" style="background:#FAEEDA;border:0.5px solid #7A3B06"></span>queued</span>
+  <span><span class="lc" style="background:#D9EEFF;border:0.5px solid #1056A3"></span>processing</span>
+  <span><span class="lc" style="background:#FDE9D4;border:0.5px solid #B05010"></span>BF / local flood</span>
+  <span><span class="lc" style="background:#FAECE7;border:0.5px solid #882812"></span>pivot</span>
+  <span><span class="lc" style="background:#D8F3E8;border:0.5px solid #0C5C3A"></span>settled ✓</span>
+</div>
+<script>
+const POS={s:[22,82],A:[70,40],B:[70,122],C:[118,20],D:[118,62],E:[118,132],F:[165,20],G:[165,52],H:[165,82],J:[165,118],I:[215,65],K:[260,90]};
+const ED=[['s','A',4],['s','B',2],['A','C',3],['A','D',1],['B','D',5],['B','E',3],['C','F',2],['D','G',4],['D','H',1],['E','H',6],['G','I',2],['H','I',3],['H','J',5],['I','K',1],['J','K',2]];
+const C={U:['#E8E7E1','#AAA89F'],Q:['#FAEEDA','#7A3B06'],X:['#D9EEFF','#1056A3'],F:['#FDE9D4','#B05010'],V:['#FAECE7','#882812'],T:['#D8F3E8','#0C5C3A']};
+
+function mkSVG(ns,pid){
+  const R=10;
+  let o=`<svg viewBox="0 0 295 158" width="100%" style="display:block"><defs><marker id="ah${pid}" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="#B8B6AF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>`;
+  for(const[a,b,w]of ED){
+    const[ax,ay]=POS[a],[bx,by]=POS[b];
+    const dx=bx-ax,dy=by-ay,len=Math.hypot(dx,dy);
+    const ux=dx/len,uy=dy/len;
+    const x1=ax+R*ux,y1=ay+R*uy,x2=bx-R*ux,y2=by-R*uy;
+    const mx=(x1+x2)/2,my=(y1+y2)/2;
+    const lx=(mx-(-dy/len)*7).toFixed(1),ly=(my-(dx/len)*7).toFixed(1);
+    o+=`<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="#C8C6BF" stroke-width="1.1" marker-end="url(#ah${pid})"/>`;
+    o+=`<text x="${lx}" y="${ly}" text-anchor="middle" font-size="8" fill="#8A8880">${w}</text>`;
+  }
+  for(const[id,[cx,cy]]of Object.entries(POS)){
+    const[f,s]=C[ns[id]||'U'];
+    o+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="${f}" stroke="${s}" stroke-width="1.4"/>`;
+    o+=`<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="9" font-weight="700" fill="${s}">${id}</text>`;
+  }
+  return o+'</svg>';
+}
+
+function st(ov){
+  return Object.assign({s:'U',A:'U',B:'U',C:'U',D:'U',E:'U',F:'U',G:'U',H:'U',I:'U',J:'U',K:'U'},ov);
+}
+
+const AL=[
+  {fr:[
+    {d:'Init. d[s]=0, all else ∞.',n:st({s:'X'})},
+    {d:'Extract s(0) → relax A=4, B=2.',n:st({s:'T',A:'Q',B:'Q'})},
+    {d:'Extract B(2) → relax D=7 (tentative), E=5.',n:st({s:'T',A:'Q',B:'X',D:'Q',E:'Q'})},
+    {d:'Extract A(4) → relax C=7. D decreases 7→5 (decrease-key!).',n:st({s:'T',A:'X',B:'T',C:'Q',D:'Q',E:'Q'})},
+    {d:'Extract D(5) → relax G=9, H=6.',n:st({s:'T',A:'T',B:'T',C:'Q',D:'X',E:'Q',G:'Q',H:'Q'})},
+    {d:'Extract E(5) → tries H=11. No update (H already 6). Queue unchanged.',n:st({s:'T',A:'T',B:'T',C:'Q',D:'T',E:'X',G:'Q',H:'Q'})},
+    {d:'Extract H(6) → relax I=9, J=11.',n:st({s:'T',A:'T',B:'T',C:'Q',D:'T',E:'T',G:'Q',H:'X',I:'Q',J:'Q'})},
+    {d:'Extract C(7) → relax F=9.',n:st({s:'T',A:'T',B:'T',C:'X',D:'T',E:'T',F:'Q',G:'Q',H:'T',I:'Q',J:'Q'})},
+    {d:'Extract G(9), I(9), F(9) [3-way tie]. I→K=10 inserted.',n:st({s:'T',A:'T',B:'T',C:'T',D:'T',E:'T',F:'X',G:'X',H:'T',I:'X',J:'Q',K:'Q'})},
+    {d:'Extract K(10). Extract J(11) → J→K=13>10, no update. ✓ Done! s=0 B=2 A=4 D=5 E=5 H=6 C=7 G=9 F=9 I=9 K=10 J=11',n:st({s:'T',A:'T',B:'T',C:'T',D:'T',E:'T',F:'T',G:'T',H:'T',I:'T',J:'T',K:'T'})},
+  ]},
+  {fr:[
+    {d:'s settled. Frontier S = {A(4), B(2)}. k = 3.',n:st({s:'T',A:'Q',B:'Q'})},
+    {d:'BF step 1: flood from A and B simultaneously — no priority. D=5, C=7, E=5.',n:st({s:'T',A:'Q',B:'Q',C:'F',D:'F',E:'F'})},
+    {d:'BF step 2: flood from {C,D,E}. H=6, G=9, F=9.',n:st({s:'T',A:'Q',B:'Q',C:'F',D:'F',E:'F',F:'F',G:'F',H:'F'})},
+    {d:'BF step 3: flood from {F,G,H}. I=9, J=11. K not reached — still ∞.',n:st({s:'T',A:'Q',B:'Q',C:'F',D:'F',E:'F',F:'F',G:'F',H:'F',I:'F',J:'F'})},
+    {d:"A's subtree={C,D,F,G,H,I,J} size=7 ≥ k=3 → PIVOT. B's subtree={E} size=1 < k. C–J all complete.",n:st({s:'T',A:'V',B:'Q',C:'T',D:'T',E:'T',F:'T',G:'T',H:'T',I:'T',J:'T'})},
+    {d:'Recurse on pivot A: mini-Dijkstra settles chain. Finds K=10 via I→K.',n:st({s:'T',A:'X',B:'Q',C:'T',D:'T',E:'T',F:'T',G:'T',H:'T',I:'X',J:'T',K:'X'})},
+    {d:'B and E settled from arborescence W. ✓ Done! s=0 B=2 A=4 D=5 E=5 H=6 C=7 G=9 F=9 I=9 K=10 J=11',n:st({s:'T',A:'T',B:'T',C:'T',D:'T',E:'T',F:'T',G:'T',H:'T',I:'T',J:'T',K:'T'})},
+  ]},
+  {fr:[
+    {d:'s settled. Frontier S = {A(4), B(2)}. k = 3.',n:st({s:'T',A:'Q',B:'Q'})},
+    {d:'Local Dijkstra from A (Fibonacci heap). Extracts A→D(5)→H(6). Tree F_A={A,D,H}. Stop at k=3.',n:st({s:'T',A:'X',B:'Q',D:'F',H:'F'})},
+    {d:'Pivot p_A = A (min of {A,D,H}). A "owns" D and H in the data structure.',n:st({s:'T',A:'V',B:'Q',D:'Q',H:'Q'})},
+    {d:'Local Dijkstra from B. B→D invalid (7>5). Finds only {B,E}, size=2<k=3. Reports arborescence W_B.',n:st({s:'T',A:'V',B:'X',D:'Q',E:'F',H:'Q'})},
+    {d:'Pull A → expand batch to {A,D,H}. Settle A,D,H. Relax out: C,G,I,J inserted.',n:st({s:'T',A:'T',B:'Q',C:'Q',D:'T',E:'F',G:'Q',H:'T',I:'Q',J:'Q'})},
+    {d:'Pull C,G,I → settle. F(9) and K(10) inserted. Merge sub-call output. B,E settled from W.',n:st({s:'T',A:'T',B:'T',C:'T',D:'T',E:'T',F:'Q',G:'T',H:'T',I:'T',J:'Q',K:'Q'})},
+    {d:'Pull F, K, J. Settle all. ✓ Done! s=0 B=2 A=4 D=5 E=5 H=6 C=7 G=9 F=9 I=9 K=10 J=11',n:st({s:'T',A:'T',B:'T',C:'T',D:'T',E:'T',F:'T',G:'T',H:'T',I:'T',J:'T',K:'T'})},
+  ]}
+];
+
+AL.forEach((al,i)=>{
+  const sv=document.getElementById('s'+i);
+  const dv=document.getElementById('d'+i);
+  const tv=document.getElementById('t'+i);
+  al.fr.forEach((_,fi)=>{
+    const sp=document.createElement('span');
+    sp.className='dot'+(fi===0?' on':'');
+    sp.id='dot_'+i+'_'+fi;
+    tv.appendChild(sp);
+  });
+  let cur=0;
+  function render(){
+    const f=al.fr[cur];
+    sv.innerHTML=mkSVG(f.n,i);
+    dv.textContent=f.d;
+    al.fr.forEach((_,fi)=>{
+      const el=document.getElementById('dot_'+i+'_'+fi);
+      if(el)el.className='dot'+(fi===cur?' on':'');
+    });
+  }
+  render();
+  setInterval(()=>{cur=(cur+1)%al.fr.length;render();},7000);
+});
+</script>
